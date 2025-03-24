@@ -55,12 +55,18 @@ static gchar *Intron_ChainData_get_seq_func(gint start,
 void Intron_ChainData_init_splice_prediction(Intron_ChainData *icd,
         Sequence *s, SplicePredictorSet *sps, SpliceType type,
         gboolean use_single){
-    if(!icd->sps)
+    if(!icd->sps) {
+        g_message("Allocating new SplicePrediction_Set for %d bp sequence", s->len);
         icd->sps = g_new0(SplicePrediction_Set, 1);
+        g_message("Allocation complete");
+    }
+    g_message("Starting splice prediction setup for %d bp sequence (type %d, use_single=%d)", 
+              s->len, type, use_single);
     icd->sps = SplicePrediction_Set_add(icd->sps, sps, type, s->len,
             Intron_ChainData_get_seq_func, use_single, s);
+    g_message("Completed splice prediction setup for %d bp sequence", s->len);
     return;
-    }
+}
 
 static void Intron_ChainData_init(Intron_ChainData *icd){
     icd->curr_intron_start = 0;
