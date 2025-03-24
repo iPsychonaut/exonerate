@@ -1166,7 +1166,7 @@ Analysis *Analysis_create(
               GPtrArray *target_path_list, Alphabet_Type target_type,
               gint target_chunk_id, gint target_chunk_total,
               gint verbosity){
-    register Analysis *analysis = g_new0(Analysis, 1);
+    register Analysis *analysis;
     register FastaDB *query_fdb = NULL, *target_fdb = NULL,
                      *seeder_query_fdb, *seeder_target_fdb;
     register Match *match;
@@ -1178,6 +1178,12 @@ Analysis *Analysis_create(
     register gboolean use_horizon;
     register GPtrArray *expanded_query_path_list = NULL,
                        *expanded_target_path_list = NULL;
+
+    g_message("Starting Analysis_create");
+
+    analysis = g_new0(Analysis, 1);
+    g_message("Allocated Analysis struct");
+
     g_assert(query_path_list);
     g_assert(target_path_list);
     g_assert(query_path_list->len);
@@ -1185,14 +1191,18 @@ Analysis *Analysis_create(
     analysis->aas = Analysis_ArgumentSet_create(NULL);
     analysis->verbosity = verbosity;
 #ifdef USE_PTHREADS
+    g_message("Creating JobQueue with %d threads", analysis->aas->thread_count);
     analysis->job_queue = JobQueue_create(analysis->aas->thread_count);
 #else
+    g_message("Creating single-threaded JobQueue");
     analysis->job_queue = JobQueue_create(1);
 #endif
 
     /* Expand FOSN paths */
+    g_message("Expanding query path list");
     expanded_query_path_list = Analysis_FOSN_expand_path_list(
                                                     query_path_list);
+    g_message("Expanding target path list");
     expanded_target_path_list = Analysis_FOSN_expand_path_list(
                                                     target_path_list);
     if(expanded_query_path_list)
@@ -1200,8 +1210,10 @@ Analysis *Analysis_create(
     if(expanded_target_path_list)
         target_path_list = expanded_target_path_list;
     /**/
+    g_message("Creating query builder");
     analysis->query_builder = Analysis_Builder_create(query_path_list,
                                                      analysis, verbosity);
+    g_message("Creating target builder");
     analysis->target_builder = Analysis_Builder_create(target_path_list,
                                                      analysis, verbosity);
     /**/
@@ -1235,6 +1247,7 @@ Analysis *Analysis_create(
         g_message("Creating analysis with query[%s] target[%s]",
                 Alphabet_Type_get_name(query_type),
                 Alphabet_Type_get_name(target_type));
+    g_message("Creating GAM");
     analysis->gam = GAM_create(query_type, target_type,
                                mas->dna_submat,
                                mas->protein_submat,
@@ -1242,6 +1255,7 @@ Analysis *Analysis_create(
                                analysis->aas->use_exhaustive,
                                verbosity);
     /**/
+    g_message("Finding matches");
     Analysis_find_matches(analysis, &dna_match, &protein_match,
                                     &codon_match);
     match = dna_match;
@@ -1250,15 +1264,20 @@ Analysis *Analysis_create(
     if(!match)
         match = codon_match;
     g_assert(match);
-    if(!analysis->query_builder)
+    if(!analysis->query_builder) {
+        g_message("Opening query FastaDB");
         query_fdb = FastaDB_open_list_with_limit(query_path_list,
                 match->query->alphabet, query_chunk_id, query_chunk_total);
-    if(!analysis->target_builder)
-       target_fdb = FastaDB_open_list_with_limit(target_path_list,
+    }
+    if(!analysis->target_builder) {
+        g_message("Opening target FastaDB");
+        target_fdb = FastaDB_open_list_with_limit(target_path_list,
                match->target->alphabet, target_chunk_id, target_chunk_total);
+    }
     if(analysis->aas->use_exhaustive){
         if(analysis->query_builder || analysis->target_builder) /* FIXME: ni */
             g_error("Exhaustive alignment against server not implemented");
+        g_message("Creating FastaPipe for exhaustive mode");
         analysis->fasta_pipe = FastaPipe_create(
                                   query_fdb, target_fdb,
                                   Analysis_FastaPipe_Pair_init_func,
@@ -1283,6 +1302,7 @@ Analysis *Analysis_create(
         codon_hsp_param = codon_match
                         ? HSP_Param_create(codon_match, use_horizon)
                         : NULL;
+        g_message("Creating Comparison_Param");
         analysis->comparison_param = Comparison_Param_create(
                 query_type, target_type,
                 dna_hsp_param, protein_hsp_param, codon_hsp_param);
@@ -1313,21 +1333,25 @@ Analysis *Analysis_create(
         /* Don't need HSP horizon for bigseq comparison */
         if(analysis->query_builder || analysis->target_builder){
             if(analysis->query_builder && analysis->target_builder)
-                g_error("Server vs server comparison not impelemented");
+                g_error("Server vs server comparison not implemented");
             analysis->fasta_pipe = NULL;
             if(analysis->query_builder){
+                g_message("Setting probe FastaDB for query builder");
                 Analysis_Builder_set_probe_fdb(analysis->query_builder,
                                               target_fdb);
             } else {
                 g_assert(analysis->target_builder);
+                g_message("Setting probe FastaDB for target builder");
                 Analysis_Builder_set_probe_fdb(analysis->target_builder,
                                                query_fdb);
                 }
         } else {
             if(analysis->aas->use_bigseq){
+                g_message("Creating BSAM for bigseq");
                 analysis->bsam = BSAM_create(analysis->comparison_param,
                         analysis->aas->saturate_threshold,
                         verbosity);
+                g_message("Creating FastaPipe for BSAM");
                 analysis->fasta_pipe = FastaPipe_create(
                                       query_fdb, target_fdb,
                                       Analysis_FastaPipe_Pair_init_func,
@@ -1340,6 +1364,7 @@ Analysis *Analysis_create(
                                       analysis->aas->use_revcomp);
                 analysis->curr_query = NULL;
             } else { /* Use Seeder */
+                g_message("Deciding scan query");
                 analysis->scan_query = Analysis_decide_scan_query(query_fdb,
                                                         target_fdb,
                                                  analysis->aas->force_scan);
@@ -1357,6 +1382,7 @@ Analysis *Analysis_create(
                     seeder_target_fdb = target_fdb;
                     }
                 analysis->curr_seeder = NULL;
+                g_message("Creating FastaPipe for Seeder");
                 analysis->fasta_pipe = FastaPipe_create(
                     seeder_query_fdb, seeder_target_fdb,
                     Analysis_FastaPipe_Seeder_init_func,
@@ -1369,58 +1395,86 @@ Analysis *Analysis_create(
                 }
             }
         }
-    if(query_fdb)
+    if(query_fdb) {
+        g_message("Closing query FastaDB");
         FastaDB_close(query_fdb);
-    if(target_fdb)
-        FastaDB_close(target_fdb);
-    /**/
-    if(expanded_query_path_list)
-        Analysis_path_list_destroy(expanded_query_path_list);
-    if(expanded_target_path_list)
-        Analysis_path_list_destroy(expanded_target_path_list);
-    return analysis;
     }
+    if(target_fdb) {
+        g_message("Closing target FastaDB");
+        FastaDB_close(target_fdb);
+    }
+    /**/
+    if(expanded_query_path_list) {
+        g_message("Destroying expanded query path list");
+        Analysis_path_list_destroy(expanded_query_path_list);
+    }
+    if(expanded_target_path_list) {
+        g_message("Destroying expanded target path list");
+        Analysis_path_list_destroy(expanded_target_path_list);
+    }
+    g_message("Completed Analysis_create");
+    return analysis;
+}
 
 void Analysis_destroy(Analysis *analysis){
+    g_message("Starting Analysis_destroy");
     JobQueue_destroy(analysis->job_queue);
-    if(analysis->fasta_pipe)
+    if(analysis->fasta_pipe) {
+        g_message("Destroying FastaPipe");
         FastaPipe_destroy(analysis->fasta_pipe);
-    if(analysis->curr_query)
-        FastaDB_Seq_destroy(analysis->curr_query);
-    if(analysis->curr_seeder)
-        Seeder_destroy(analysis->curr_seeder);
-    if(analysis->bsam)
-        BSAM_destroy(analysis->bsam);
-    if(analysis->comparison_param)
-        Comparison_Param_destroy(analysis->comparison_param);
-    /*
-    if(analysis->query_ac)
-        Analysis_Client_destroy(analysis->query_ac);
-    if(analysis->target_ac)
-        Analysis_Client_destroy(analysis->target_ac);
-    */
-    if(analysis->query_builder)
-        Analysis_Builder_destroy(analysis->query_builder);
-    if(analysis->target_builder)
-        Analysis_Builder_destroy(analysis->target_builder);
-    GAM_destroy(analysis->gam);
-    g_free(analysis);
-    return;
     }
+    if(analysis->curr_query) {
+        g_message("Destroying current query");
+        FastaDB_Seq_destroy(analysis->curr_query);
+    }
+    if(analysis->curr_seeder) {
+        g_message("Destroying current seeder");
+        Seeder_destroy(analysis->curr_seeder);
+    }
+    if(analysis->bsam) {
+        g_message("Destroying BSAM");
+        BSAM_destroy(analysis->bsam);
+    }
+    if(analysis->comparison_param) {
+        g_message("Destroying Comparison_Param");
+        Comparison_Param_destroy(analysis->comparison_param);
+    }
+    if(analysis->query_builder) {
+        g_message("Destroying query builder");
+        Analysis_Builder_destroy(analysis->query_builder);
+    }
+    if(analysis->target_builder) {
+        g_message("Destroying target builder");
+        Analysis_Builder_destroy(analysis->target_builder);
+    }
+    g_message("Destroying GAM");
+    GAM_destroy(analysis->gam);
+    g_message("Freeing Analysis struct");
+    g_free(analysis);
+    g_message("Completed Analysis_destroy");
+    return;
+}
 
 void Analysis_process(Analysis *analysis){
+    g_message("Starting Analysis_process");
     if(analysis->query_builder){
+        g_message("Processing with query builder");
         Analysis_Builder_process(analysis->query_builder, analysis, TRUE);
     } else if(analysis->target_builder){
+        g_message("Processing with target builder");
         Analysis_Builder_process(analysis->target_builder, analysis, FALSE);
     } else {
+        g_message("Processing FastaPipe");
         while(FastaPipe_process(analysis->fasta_pipe, analysis));
-        }
-    if(analysis->job_queue)
-        JobQueue_complete(analysis->job_queue);
-    GAM_report(analysis->gam);
-    return;
     }
+    if(analysis->job_queue) {
+        g_message("Completing JobQueue");
+        JobQueue_complete(analysis->job_queue);
+    }
+    g_message("Reporting GAM results");
+    GAM_report(analysis->gam);
+    g_message("Completed Analysis_process");
+    return;
+}
 
 /**/
-
