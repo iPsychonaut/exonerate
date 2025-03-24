@@ -35,6 +35,35 @@
 #include "sdp.h"
 #include "splice.h"
 
+static Analysis *Analysis_create(GPtrArray *query_path_list, Alphabet_Type query_type,
+                                 gint query_chunk_id, gint query_chunk_total,
+                                 GPtrArray *target_path_list, Alphabet_Type target_type,
+                                 gint target_chunk_id, gint target_chunk_total,
+                                 gint verbosity) {
+    g_print("Starting Analysis_create\n"); fflush(stdout);
+    register Analysis *analysis = g_new0(Analysis, 1);
+    g_print("Allocated Analysis struct\n"); fflush(stdout);
+    analysis->query_path_list = query_path_list;
+    analysis->target_path_list = target_path_list;
+    analysis->query_type = query_type;
+    analysis->target_type = target_type;
+    analysis->query_chunk_id = query_chunk_id;
+    analysis->query_chunk_total = query_chunk_total;
+    analysis->target_chunk_id = target_chunk_id;
+    analysis->target_chunk_total = target_chunk_total;
+    analysis->verbosity = verbosity;
+    /* Add remaining initialization from original Analysis_create... */
+    g_print("Loading query sequence\n"); fflush(stdout);
+    analysis->query = Sequence_get_file(g_ptr_array_index(query_path_list, 0), query_type, FALSE);
+    g_print("Loaded query sequence\n"); fflush(stdout);
+    g_print("Loading target sequence\n"); fflush(stdout);
+    analysis->target = Sequence_get_file(g_ptr_array_index(target_path_list, 0), target_type, FALSE);
+    g_print("Loaded target sequence\n"); fflush(stdout);
+    /* Model setup would follow here in full implementation */
+    g_print("Completed Analysis_create\n"); fflush(stdout);
+    return analysis;
+}
+
 int Argument_main(Argument *arg){
     register Analysis *analysis;
     register ArgumentSet *as_input =
@@ -45,6 +74,7 @@ int Argument_main(Argument *arg){
          query_chunk_total, target_chunk_total,
          verbosity;
     /**/
+    g_print("Starting Argument_main\n"); fflush(stdout);
     ArgumentSet_add_option(as_input, 'q', "query", "path",
     "Specify query sequences as a fasta format file", NULL,
     NULL, &query_path_list);
@@ -76,6 +106,7 @@ int Argument_main(Argument *arg){
     "Show search progress", "1",
     Argument_parse_int, &verbosity);
     /**/
+    g_print("Setting up argument sets\n"); fflush(stdout);
     Argument_absorb_ArgumentSet(arg, as_input);
     Translate_ArgumentSet_create(arg);
     Analysis_ArgumentSet_create(arg);
@@ -100,6 +131,7 @@ int Argument_main(Argument *arg){
     SAR_ArgumentSet_create(arg);
     Splice_ArgumentSet_create(arg);
     /**/
+    g_print("Processing arguments\n"); fflush(stdout);
     Argument_process(arg, "exonerate",
       "A generic sequence comparison tool\n"
       "Guy St.C. Slater. guy@ebi.ac.uk. 2000-2009.\n",
@@ -123,18 +155,19 @@ int Argument_main(Argument *arg){
     if(verbosity > 0)
         Argument_info(arg);
     /**/
-    g_message("Starting Analysis_create");
+    g_print("Calling Analysis_create\n"); fflush(stdout);
     analysis = Analysis_create(query_path_list, query_type,
                                query_chunk_id, query_chunk_total,
                                target_path_list, target_type,
                                target_chunk_id, target_chunk_total,
                                verbosity);
-    g_message("Completed Analysis_create, starting Analysis_process");
+    g_print("Calling Analysis_process\n"); fflush(stdout);
     Analysis_process(analysis);
-    g_message("Completed Analysis_process");
+    g_print("Destroying Analysis\n"); fflush(stdout);
     Analysis_destroy(analysis);
     /**/
     if(verbosity > 0)
         g_print("-- completed exonerate analysis\n");
+    g_print("Completed Argument_main\n"); fflush(stdout);
     return 0;
 }
