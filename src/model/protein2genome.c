@@ -43,6 +43,7 @@ void Protein2Genome_Data_destroy(Protein2Genome_Data *p2gd){
 /**/
 
 C4_Model *Protein2Genome_create(Affine_Model_Type type){
+    g_message("Starting Protein2Genome_create with type %d", type);
     register C4_Model *model = Protein2DNA_create(type);
     register C4_Transition *match_transition;
     register C4_Model *phase_model;
@@ -50,20 +51,28 @@ C4_Model *Protein2Genome_create(Affine_Model_Type type){
     register gchar *name = g_strdup_printf("protein2genome:%s",
                                            Affine_Model_Type_get_name(type));
     g_assert(model);
+    g_message("Renaming model to %s", name);
     C4_Model_rename(model, name);
     g_free(name);
+    g_message("Opening model for modification");
     C4_Model_open(model);
+    g_message("Selecting MATCH transition");
     match_transition = C4_Model_select_single_transition(model,
                                                  C4_Label_MATCH);
     g_assert(match_transition);
     /* Add phased intron model */
     match = match_transition->label_data;
+    g_message("Creating phase model");
     phase_model = Phase_create(NULL, match, FALSE, TRUE);
+    g_message("Inserting phase model");
     C4_Model_insert(model, phase_model, match_transition->input,
                                         match_transition->output);
+    g_message("Destroying phase model");
     C4_Model_destroy(phase_model);
     /**/
+    g_message("Closing model");
     C4_Model_close(model);
+    g_message("Completed Protein2Genome_create");
     return model;
-    }
+}
 
