@@ -123,18 +123,18 @@ int Argument_main(Argument *arg){
     if(verbosity > 0)
         Argument_info(arg);
     /**/
+    g_message("Starting Analysis_create");
     analysis = Analysis_create(query_path_list, query_type,
                                query_chunk_id, query_chunk_total,
                                target_path_list, target_type,
                                target_chunk_id, target_chunk_total,
                                verbosity);
+    g_message("Completed Analysis_create, starting Analysis_process");
     Analysis_process(analysis);
+    g_message("Completed Analysis_process");
     Analysis_destroy(analysis);
     /**/
     if(verbosity > 0)
         g_print("-- completed exonerate analysis\n");
     return 0;
-    }
-
-/**/
-
+}
