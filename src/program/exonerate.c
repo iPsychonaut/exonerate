@@ -35,35 +35,6 @@
 #include "sdp.h"
 #include "splice.h"
 
-static Analysis *Analysis_create(GPtrArray *query_path_list, Alphabet_Type query_type,
-                                 gint query_chunk_id, gint query_chunk_total,
-                                 GPtrArray *target_path_list, Alphabet_Type target_type,
-                                 gint target_chunk_id, gint target_chunk_total,
-                                 gint verbosity) {
-    g_print("Starting Analysis_create\n"); fflush(stdout);
-    register Analysis *analysis = g_new0(Analysis, 1);
-    g_print("Allocated Analysis struct\n"); fflush(stdout);
-    analysis->query_path_list = query_path_list;
-    analysis->target_path_list = target_path_list;
-    analysis->query_type = query_type;
-    analysis->target_type = target_type;
-    analysis->query_chunk_id = query_chunk_id;
-    analysis->query_chunk_total = query_chunk_total;
-    analysis->target_chunk_id = target_chunk_id;
-    analysis->target_chunk_total = target_chunk_total;
-    analysis->verbosity = verbosity;
-    /* Add remaining initialization from original Analysis_create... */
-    g_print("Loading query sequence\n"); fflush(stdout);
-    analysis->query = Sequence_get_file(g_ptr_array_index(query_path_list, 0), query_type, FALSE);
-    g_print("Loaded query sequence\n"); fflush(stdout);
-    g_print("Loading target sequence\n"); fflush(stdout);
-    analysis->target = Sequence_get_file(g_ptr_array_index(target_path_list, 0), target_type, FALSE);
-    g_print("Loaded target sequence\n"); fflush(stdout);
-    /* Model setup would follow here in full implementation */
-    g_print("Completed Analysis_create\n"); fflush(stdout);
-    return analysis;
-}
-
 int Argument_main(Argument *arg){
     register Analysis *analysis;
     register ArgumentSet *as_input =
